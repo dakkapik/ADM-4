@@ -1,40 +1,28 @@
-require("../pages/PageServer")(3000)
-const net = require('net');    
-const server = net.createServer();    
-const JSONDuplexStream = require('json-duplex-stream');
+const {front, server, io} = require("../pages/PageServer")(3000)
 
-const Gateway = require('./gateway')
+const wrtc = require('wrtc');
 
-server.on('connection', handleConnection);
-const port = 8000
-const ip = require("../util/BuildAddress")(port)
+io.on('connection', function(socket) {
+  const pc = new wrtc.RTCPeerConnection();
 
+  socket.on('offer', function(offer) {
+    pc.setRemoteDescription(new wrtc.RTCSessionDescription(offer));
+    pc.createAnswer(function(answer) {
+      pc.setLocalDescription(new wrtc.RTCSessionDescription(answer));
+      socket.emit('answer', answer);
+    });
+  });
 
-server.listen(port, function() {    
-  console.log('TCP/IP server listening on', ip);  
+  pc.onaddstream = function(event) {
+    socket.emit('stream', event.stream);
+  };
+
+  // navigator.mediaDevices.getUserMedia({audio: true}).then(function(stream) {
+  //   pc.addStream(stream);
+
+  //   const offer = pc.createOffer(function(offer) {
+  //     pc.setLocalDescription(new wrtc.RTCSessionDescription(offer));
+  //     socket.emit('offer', offer);
+  //   });
+  // });
 });
-
-function handleConnection(conn) {    
-    const s = JSONDuplexStream();  
-    const gateway = new Gateway();  
-
-    conn.  
-      pipe(s.in).  
-      pipe(gateway).  
-      pipe(s.out).  
-      pipe(conn);
-
-    s.in.on('error', onProtocolError);  
-    s.out.on('error', onProtocolError);  
-    conn.on('error', onConnError);
-
-    function onProtocolError(err) {  
-      conn.end('protocol error:' + err.message);  
-    }  
-
-  }
-  function onConnError(err) {    
-    console.error('connection error:', err.stack);  
-  }
-
-  
